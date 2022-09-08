@@ -41,40 +41,39 @@ for image in os.scandir(IMAGE_DIR):
 
         crop_mask = np.load(crop.path.replace("images", "masks").replace(".jpg", ".npy"))
         with open(crop.path.replace("images", "masks").replace(".jpg", ".txt"), 'r') as crop_info:
-            coords = crop_info.readline().split(" ")
+            label, x1, y1, x2, y2 = crop_info.readline().split(" ")
         
         crops.append(crop_image)
         masks.append(crop_mask)
-        crops_info.append(coords)
-        if random.random() < 0.5:
-            labels.append("dog")
-        else:
-            labels.append("cat")
+        crops_info.append([x1, y1, x2, y2])
+        labels.append(label)
     
     print("Launching GUI")
 
     gui = GUI(crops, masks, crops_info, labels)
     gui.construct_gui()
     gui.window.destroy()
-    usable_images = gui.usable_images
     usable_masks = gui.usable_masks
     usable_crops = gui.usable_crops
     
-    if len(usable_masks) == len(masks):
-        base_image = Image.open(base_image.path)
-        image_dims = np.array(base_image).shape
+    if len(usable_masks) == len(masks):# and None not in usable_masks:
+        base_PIL_image = Image.open(base_image.path)
+        image_dims = np.array(base_PIL_image).shape
         base_image_mask = np.zeros((image_dims[0], image_dims[1], 1))
         for index, mask in enumerate(usable_masks):
+            if type(mask) == type(None):
+                continue
             mask = np.array(mask)
             mask = np.reshape(mask, (len(mask), len(mask[0]), 1))
-            x1,y1,x2,y2 = usable_crops[index]
+            label, crop_info = usable_crops[index]
+            x1,y1,x2,y2 = crop_info
             mask_pad = tf.constant([[int(y1), image_dims[0]-int(y2)], [int(x1), image_dims[1]-int(x2)], [0,0]])
             resized_mask = tf.pad(mask, mask_pad, "CONSTANT")
             base_image_mask = np.where(resized_mask, resized_mask, base_image_mask)
             
         print("Checking full image")
             
-        full_image_gui = GUI([base_image], [base_image_mask], None, None)
+        full_image_gui = GUI([base_PIL_image], [base_image_mask], None, None)
         full_image_gui.construct_gui()
         full_image_gui.window.destroy()
         full_inaccurate = not full_image_gui.usable_masks
@@ -92,14 +91,14 @@ for image in os.scandir(IMAGE_DIR):
         # usable_crops_info.append([0, 0, image_dims[1], image_dims[0]])
 
     detections = []
-    for index, crop in enumerate(usable_images):
+    for index, crop_info in enumerate(usable_crops):
         # crop.save(RESULT_DIR + f"images/{image.name}_{index}.jpg")
-        crop_info = usable_crops[index]
+        print(crop_info)
 
         # Rework the mask to only store the elements within the bounding box
         crop_mask = usable_masks[index]
         crop_mask_list = np.ndarray.tolist(np.array(crop_mask))
-        detections.append({ "mask": crop_mask_list, "bounding_box": [crop_info[0], crop_info[1], crop_info[2], crop_info[3]] }) # Stored in xyxy format
+        detections.append({"label": crop_info[0], "mask": crop_mask_list, "bounding_box": crop_info[1] }) # Stored in xyxy format
 
     if detections:
         crop_dict = {
@@ -109,6 +108,7 @@ for image in os.scandir(IMAGE_DIR):
                     }
         with open(RESULT_DIR + f'masks/{image.name}.json', 'w') as mask_file:
             json.dump(crop_dict, mask_file)
-        base_image.save(RESULT_DIR + f"images/{image.name}.jpg") # Reader can use the bounding values to extract the cropped image from the base image for training
+        base_PIL_image = Image.open(base_image.path)
+        base_PIL_image.save(RESULT_DIR + f"images/{image.name}.jpg") # Reader can use the bounding values to extract the cropped image from the base image for training
     
 

@@ -22,7 +22,6 @@ class GUI:
         
         # Stores the usable images
         self.usable_crops = []
-        self.usable_images = []
         self.usable_masks = []
         
         # Components for the GUI
@@ -46,6 +45,7 @@ class GUI:
                     
         new_image = ImageTk.PhotoImage(image)
         img_buf.close()
+        plt.close('all')
         
         return new_image
         
@@ -54,12 +54,11 @@ class GUI:
         print("Confirmed")
         if self.checking_mask:
             self.checking_mask = False
-            self.usable_images.append(self.images[self.current_index])
             self.usable_masks.append(self.masks[self.current_index])
             self.move_to_next_crop()
         else:
             self.checking_mask = True
-            crop_info = self.crop_info[self.current_index]
+            crop_info = [self.labels[self.current_index], self.crop_info[self.current_index]]
             self.usable_crops.append(crop_info)
             self.instruction_label.configure(text = self.check_mask_str)
             mask = self.masks[self.current_index] 
@@ -71,6 +70,11 @@ class GUI:
         
         
     def move_to_next_crop(self):
+        print(self.checking_mask)
+        if self.checking_mask:
+            self.usable_masks.append(None)
+            print(self.usable_masks)
+            self.checking_mask = False
         self.current_index += 1
         if self.current_index >= len(self.images):
             self.window.quit()
